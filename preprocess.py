@@ -12,10 +12,11 @@ import torch
 import tarfile
 import torchtext.data
 import torchtext.datasets
-from torchtext.datasets import TranslationDataset
+from torchtext.legacy.datasets import TranslationDataset
 import transformer.Constants as Constants
 from learn_bpe import learn_bpe
 from apply_bpe import BPE
+import pandas as pd
 
 
 __author__ = "Yu-Hsiang Huang"
@@ -44,6 +45,20 @@ _TEST_DATA_SOURCES = [
                 "official_transformer/test_data/newstest2014.tgz",
      "trg": "newstest2014.en",
      "src": "newstest2014.de"}]
+
+
+def text2json(srcFile, tgtFile, outFile):
+    train_en = open(srcFile, encoding='utf8').read().split('\n')
+    train_spa = open(tgtFile, encoding='utf8').read().split('\n')
+
+
+    raw_data = {
+        'English': train_en,
+        'Spanish': train_spa
+    }
+
+    df = pd.DataFrame(raw_data, columns=['English', 'Spanish'])
+    df.to_json(outFile, orient='records', lines=True)
 
 
 class TqdmUpTo(tqdm):
@@ -267,8 +282,8 @@ def main_wo_bpe():
     assert not any([opt.data_src, opt.data_trg]) or all([opt.data_src, opt.data_trg])
     print(opt)
 
-    src_lang_model = spacy.load(opt.lang_src)
-    trg_lang_model = spacy.load(opt.lang_trg)
+    src_lang_model = spacy.load('en_core_web_sm')
+    trg_lang_model = spacy.load('es_core_news_sm')
 
     def tokenize_src(text):
         return [tok.text for tok in src_lang_model.tokenizer(text)]
@@ -276,30 +291,46 @@ def main_wo_bpe():
     def tokenize_trg(text):
         return [tok.text for tok in trg_lang_model.tokenizer(text)]
 
-    SRC = torchtext.data.Field(
+    SRC = torchtext.legacy.data.Field(
         tokenize=tokenize_src, lower=not opt.keep_case,
         pad_token=Constants.PAD_WORD, init_token=Constants.BOS_WORD, eos_token=Constants.EOS_WORD)
 
-    TRG = torchtext.data.Field(
+    TRG = torchtext.legacy.data.Field(
         tokenize=tokenize_trg, lower=not opt.keep_case,
         pad_token=Constants.PAD_WORD, init_token=Constants.BOS_WORD, eos_token=Constants.EOS_WORD)
 
     MAX_LEN = opt.max_len
     MIN_FREQ = opt.min_word_count
 
-    if not all([opt.data_src, opt.data_trg]):
-        assert {opt.lang_src, opt.lang_trg} == {'de', 'en'}
-    else:
-        # Pack custom txt file into example datasets
-        raise NotImplementedError
-
     def filter_examples_with_length(x):
         return len(vars(x)['src']) <= MAX_LEN and len(vars(x)['trg']) <= MAX_LEN
 
-    train, val, test = torchtext.datasets.Multi30k.splits(
-            exts = ('.' + opt.lang_src, '.' + opt.lang_trg),
-            fields = (SRC, TRG),
-            filter_pred=filter_examples_with_length)
+    # train, val, test = torchtext.legacy.datasets.Multi30k.splits(
+    #         exts = ('.' + opt.lang_src, '.' + opt.lang_trg),
+    #         fields = (SRC, TRG),
+    #         filter_pred=filter_examples_with_length)
+
+    train = torchtext.legacy.datasets.TranslationDataset(
+        path='data/train',
+        exts=('.en', '.spa'),
+        fields=(SRC, TRG),
+        filter_pred=filter_examples_with_length
+     )
+
+    val = torchtext.legacy.datasets.TranslationDataset(
+        path='data/test',
+        exts=('.en', '.spa'),
+        fields=(SRC, TRG),
+        filter_pred=filter_examples_with_length
+    )
+
+    test = torchtext.legacy.datasets.TranslationDataset(
+        path='data/test',
+        exts=('.en', '.spa'),
+        fields=(SRC, TRG),
+        filter_pred=filter_examples_with_length
+    )
+
 
     SRC.build_vocab(train.src, min_freq=MIN_FREQ)
     print('[Info] Get source language vocabulary size:', len(SRC.vocab))
@@ -333,4 +364,6 @@ def main_wo_bpe():
 
 if __name__ == '__main__':
     main_wo_bpe()
-    #main()
+
+
+

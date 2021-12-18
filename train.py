@@ -14,8 +14,8 @@ import os
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from torchtext.data import Field, Dataset, BucketIterator
-from torchtext.datasets import TranslationDataset
+from torchtext.legacy.data import Field, Dataset, BucketIterator
+from torchtext.legacy.datasets import TranslationDataset
 
 import transformer.Constants as Constants
 from transformer.Models import Transformer
@@ -267,6 +267,8 @@ def main():
 
     device = torch.device('cuda' if opt.cuda else 'cpu')
 
+    print(f'Using device {device}')
+
     #========= Loading Dataset =========#
 
     if all((opt.train_path, opt.val_path)):
@@ -328,6 +330,7 @@ def prepare_dataloaders_from_bpe_files(opt, device):
         filter_pred=filter_examples_with_length)
 
     opt.max_token_seq_len = MAX_LEN + 2
+
     opt.src_pad_idx = opt.trg_pad_idx = field.vocab.stoi[Constants.PAD_WORD]
     opt.src_vocab_size = opt.trg_vocab_size = len(field.vocab)
 
